@@ -17,11 +17,11 @@ int main(int argc, const char* argv[])
 
 	homework1_test();
 
-	extern void lecture7_thread_test();
-	lecture7_thread_test();
+	//extern void lecture7_thread_test();
+	//lecture7_thread_test();
 
-	extern void lecture7_queue_test();
-	lecture7_queue_test();
+	//extern void lecture7_queue_test();
+	//lecture7_queue_test();
 
 	debug_set_print_mask(k_print_warning | k_print_error);
 
@@ -68,8 +68,8 @@ static void homework1_test()
 {
 	heap_t* heap = heap_create(4096);
 	void* block1 = homework1_allocate_1(heap);
-	/*leaked*/ homework1_allocate_2(heap);
-	/*leaked*/ homework1_allocate_3(heap);
+	homework1_allocate_2(heap);
+	homework1_allocate_3(heap);
 	heap_free(heap, block1);
 	heap_destroy(heap);
 }

@@ -1,1 +1,3 @@
 C:\projects\gamearch-2022\ga2022\src\x64\Debug\ga2022.exe
+C:\Users\DANTK\Dropbox\Game Architecture\WindowMaker\ga2022KeeganDant\src\x64\Debug\ga2022.exe
+C:\Users\DANTK\Documents\Game Architecture\WindowMaker\ga2022KeeganDant\src\x64\Debug\ga2022.exe
