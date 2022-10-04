@@ -18,7 +18,7 @@ int main(int argc, const char* argv[])
 {
 	debug_install_exception_handler();
 
-	homework1_test();
+	//homework1_test();
 	homework2_test();
 
 	debug_set_print_mask(k_print_warning | k_print_error);
@@ -91,6 +91,10 @@ static void homework2_test_internal(heap_t* heap, fs_t* fs, bool use_compression
 	assert(fs_work_get_result(read_work) == 0);
 	assert(fs_work_get_size(read_work) == huck_finn_len);
 
+	debug_print(
+		k_print_info,
+		"Almost Done\n");
+
 	fs_work_destroy(read_work);
 	fs_work_destroy(write_work);
 
@@ -99,7 +103,7 @@ static void homework2_test_internal(heap_t* heap, fs_t* fs, bool use_compression
 
 static void homework2_test()
 {
-	heap_t* heap = heap_create(4096);
+	heap_t* heap = heap_create(16000);
 	fs_t* fs = fs_create(heap, 16);
 
 	const bool disable_compression = false;

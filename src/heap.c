@@ -159,7 +159,6 @@ void* heap_alloc(heap_t* heap, size_t size, size_t alignment)
 			ptr = sub_arena;
 		}
 	}
-	}
 
 	mutex_unlock(heap->mutex);
 
