@@ -37,7 +37,6 @@ typedef struct fs_work_t
 	bool use_compression;
 	void* buffer;
 	size_t size;
-	size_t compressed_size;
 	event_t* done;
 	int result;
 	mutex_t* mutex;
@@ -238,13 +237,14 @@ static void file_write(fs_work_t* work)
 
 static void decompress_wrap(fs_work_t* work) {
 	char* tmp = heap_alloc(work->heap, work->size, 8);
+	char* c_s = &((char*)work->buffer)[work->size];
+	int compressed_size = atoi(c_s);
 	debug_print(
 		k_print_info,
 		"Size: %d, Compressed_Size: %d\n",
 		work->size,
-		work->compressed_size);
-	//compressed_size is not correct here
-	int s = (size_t)LZ4_decompress_safe(work->buffer, tmp, 4803, (int)work->size);
+		compressed_size);
+	int s = (size_t)LZ4_decompress_safe(work->buffer, tmp, compressed_size, (int)work->size);
 	debug_print(
 		k_print_info,
 		"Decompressed %d bytes\n",
@@ -254,15 +254,15 @@ static void decompress_wrap(fs_work_t* work) {
 }
 
 static void compress_wrap(fs_work_t* work) {
-	char* tmp = heap_alloc(work->heap, work->size, 8);
-	work->compressed_size = (size_t)LZ4_compress_default(work->buffer, tmp, (int)work->size, (int)work->size);
+	char* tmp = heap_alloc(work->heap, ((int)work->size)+5, 8);
+	//alocate 5 more bites than size to store compressed size
+	int compressed_size = (size_t)LZ4_compress_default(work->buffer, tmp, (int)work->size, (int)work->size);
+	tmp[work->size] = compressed_size + '0';
 	debug_print(
 		k_print_info,
-		"Compressed %d bytes from %d bytes\n",
-		work->compressed_size,
-		work->size);
-	//this heap free breaks the code
-	//heap_free(work->heap, work->buffer);
+		"Compressed %d bytes into %d bytes.\n",
+		work->size,
+		compressed_size);
 	work->buffer = tmp;
 }
 
