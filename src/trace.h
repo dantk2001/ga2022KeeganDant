@@ -1,8 +1,34 @@
 #pragma once
 
-typedef struct heap_t heap_t;
+#include <stdbool.h>
 
-typedef struct trace_t trace_t;
+#include "heap.h"
+#include "queue.h"
+#include "mutex.h"
+#include "timer_object.h"
+
+typedef struct event_t
+{
+	const char* name;
+	long start_time;
+	long end_time;
+	int pid;
+	int tid;
+} event_t;
+
+typedef struct trace_t
+{
+	bool capturing;
+	bool first_event;
+	const char* file_path;
+	int event_capacity;
+	void* buffer;
+	int capture_count;
+	heap_t* heap;
+	queue_t* trace_queue;
+	mutex_t* mutex;
+	timer_object_t* timer;
+} trace_t;
 
 // Creates a CPU performance tracing system.
 // Event capacity is the maximum number of durations that can be traced.
