@@ -9,6 +9,7 @@
 #include "mutex.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -252,30 +253,16 @@ static void decompress_wrap(fs_work_t* work) {
 	char* tmp = heap_alloc(work->heap, work->size, 8);
 	char* c_s = &((char*)work->buffer)[work->size];
 	int compressed_size = atoi(c_s);
-	debug_print(
-		k_print_info,
-		"Size: %d, Compressed_Size: %d\n",
-		work->size,
-		compressed_size);
 	int s = (size_t)LZ4_decompress_safe(work->buffer, tmp, compressed_size, (int)work->size);
-	debug_print(
-		k_print_info,
-		"Decompressed %d bytes\n",
-		s);
 	heap_free(work->heap, work->buffer);
 	work->buffer = tmp;
 }
 
 static void compress_wrap(fs_work_t* work) {
-	char* tmp = heap_alloc(work->heap, ((int)work->size)+5, 8);
-	//alocate 5 more bites than size to store compressed size
-	int compressed_size = (size_t)LZ4_compress_default(work->buffer, tmp, (int)work->size, (int)work->size);
-	tmp[work->size] = compressed_size + '0';
-	debug_print(
-		k_print_info,
-		"Compressed %d bytes into %d bytes.\n",
-		work->size,
-		compressed_size);
+	char* tmp = heap_alloc(work->heap, ((int)work->size)+sizeof(int), 8);
+	int compressed_size = (size_t)LZ4_compress_default(work->buffer, tmp+sizeof(int), (int)work->size, (int)work->size);
+	sprintf(tmp, "%d", compressed_size);
+	heap_free(work->heap, work->buffer);
 	work->buffer = tmp;
 }
 

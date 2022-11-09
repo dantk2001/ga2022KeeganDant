@@ -199,7 +199,7 @@ static int homework3_test_func(void* data)
 
 static void homework3_test()
 {
-	heap_t* heap = heap_create(4096);
+	heap_t* heap = heap_create(8192);
 
 	// Create the tracing system with at least space for 100 *captured* events.
 	// Each call to trace_duration_push is an event.

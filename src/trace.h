@@ -5,7 +5,6 @@
 #include "heap.h"
 #include "queue.h"
 #include "mutex.h"
-#include "timer_object.h"
 
 typedef struct event_t
 {
@@ -25,9 +24,12 @@ typedef struct trace_t
 	void* buffer;
 	int capture_count;
 	heap_t* heap;
-	queue_t* trace_queue;
+	int trace_queues_count;
+	int trace_queues_index;
+	queue_t** trace_queues;
+	int* pids;
+	int* tids;
 	mutex_t* mutex;
-	timer_object_t* timer;
 } trace_t;
 
 // Creates a CPU performance tracing system.

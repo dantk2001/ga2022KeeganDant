@@ -160,6 +160,12 @@ void* heap_alloc(heap_t* heap, size_t size, size_t alignment)
 		}
 	}
 
+	if (address)
+	{
+		void* callstack = (char*)address + size;
+		CaptureStackBackTrace(0, 8, callstack, NULL);
+	}
+
 	mutex_unlock(heap->mutex);
 
 	return address;
