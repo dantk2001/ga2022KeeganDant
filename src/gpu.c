@@ -554,9 +554,9 @@ gpu_t* gpu_create(heap_t* heap, wm_window_t* window)
 	{
 		.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 		.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-		.poolSizeCount = 1,
+		.poolSizeCount = _countof(descriptor_pool_sizes),
 		.pPoolSizes = descriptor_pool_sizes,
-		.maxSets = _countof(descriptor_pool_sizes),
+		.maxSets = 512,
 	};
 	result = vkCreateDescriptorPool(gpu->logical_device, &descriptor_pool_info, NULL, &gpu->descriptor_pool);
 	if (result)
@@ -668,6 +668,7 @@ void gpu_destroy(gpu_t* gpu)
 			if (gpu->frames[i].cmd_buffer)
 			{
 				vkFreeCommandBuffers(gpu->logical_device, gpu->cmd_pool, 1, &gpu->frames[i].cmd_buffer->buffer);
+				heap_free(gpu->heap, gpu->frames[i].cmd_buffer);
 			}
 			if (gpu->frames[i].frame_buffer)
 			{
@@ -712,6 +713,16 @@ void gpu_destroy(gpu_t* gpu)
 	{
 		heap_free(gpu->heap, gpu);
 	}
+}
+
+int gpu_get_frame_count(gpu_t* gpu)
+{
+	return gpu->frame_count;
+}
+
+void gpu_wait_until_idle(gpu_t* gpu)
+{
+	vkQueueWaitIdle(gpu->queue);
 }
 
 gpu_descriptor_t* gpu_descriptor_create(gpu_t* gpu, const gpu_descriptor_info_t* info)
@@ -915,8 +926,8 @@ gpu_pipeline_t* gpu_pipeline_create(gpu_t* gpu, const gpu_pipeline_info_t* info)
 	{
 		.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 		.polygonMode = VK_POLYGON_MODE_FILL,
-		.cullMode = VK_CULL_MODE_NONE,
-		.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+		.cullMode = VK_CULL_MODE_BACK_BIT,
+		.frontFace = VK_FRONT_FACE_CLOCKWISE,
 		.lineWidth = 1.0f,
 	};
 
