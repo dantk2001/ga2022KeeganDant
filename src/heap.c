@@ -93,11 +93,13 @@ void* heap_alloc(heap_t* heap, size_t size, size_t alignment)
 {
 	mutex_lock(heap->mutex);
 
-	void* address = tlsf_memalign(heap->tlsf, alignment, size);
+	size_t size_plus_callstack = size + 64;
+
+	void* address = tlsf_memalign(heap->tlsf, alignment, size_plus_callstack);
 	if (!address)
 	{
 		size_t arena_size =
-			__max(heap->grow_increment, size * 2) +
+			__max(heap->grow_increment, size_plus_callstack * 2) +
 			sizeof(arena_t);
 		arena_t* arena = VirtualAlloc(NULL,
 			arena_size + tlsf_pool_overhead(),
@@ -115,7 +117,7 @@ void* heap_alloc(heap_t* heap, size_t size, size_t alignment)
 		arena->next = heap->arena;
 		heap->arena = arena;
 
-		address = tlsf_memalign(heap->tlsf, alignment, size);
+		address = tlsf_memalign(heap->tlsf, alignment, size_plus_callstack);
 
 		//Initializes the arena_t variables to the needed values
 		arena->size = (int)size;
@@ -219,6 +221,16 @@ void free_sub(sub_arena_t* sub) {
 	VirtualFree(sub, 0, MEM_RELEASE);
 }
 
+static void leak_check(void* ptr, size_t size, int used, void* user)
+{
+	if (used)
+	{
+		//void* callstack = (char*)ptr + (size - 64); 
+		//symbolicate callstack!
+		//print!
+	}
+}
+
 void heap_destroy(heap_t* heap)
 {
 
@@ -227,6 +239,8 @@ void heap_destroy(heap_t* heap)
 	arena_t* arena = heap->arena;
 	while (arena)
 	{
+		tlsf_walk_pool(arena->pool, leak_check, NULL);
+
 		//If arena isn't free'd output message
 		if (arena->freed == 0)
 		{

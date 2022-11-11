@@ -14,7 +14,7 @@ trace_t* trace_create(heap_t* heap, int event_capacity)
 	trace->heap = heap;
 	trace->trace_queues_count = 100;
 	trace->trace_queues_index = 0;
-	trace->trace_queues = heap_alloc(heap, sizeof(queue_t*)*100, 8);
+	trace->trace_queues = heap_alloc(heap, sizeof(queue_t*)*100, 8); //this
 	trace->tids = heap_alloc(heap, sizeof(int) * trace->trace_queues_count, 8);
 	trace->pids = heap_alloc(heap, sizeof(int) * trace->trace_queues_count, 8);
 	trace->event_capacity = event_capacity;
