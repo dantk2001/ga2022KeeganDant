@@ -119,11 +119,11 @@ frogger_game_t* frogger_game_create(heap_t* heap, fs_t* fs, wm_window_t* window,
 
 	load_resources(game);
 	spawn_player(game, 0);
-	int row_count[] = {0, 9, 12};
+	int row_count[] = {0, 6, 9};
 	game->traffic_ent = heap_alloc(game->heap, sizeof(ecs_entity_ref_t*) * 3, 8);
 	for (int i = 0; i < 3; i++) {
-		game->traffic_ent[i] = heap_alloc(game->heap, sizeof(ecs_entity_ref_t) * (18 - row_count[i]), 8);
-		for (int j = i; j < (18 - row_count[i]); j++) {
+		game->traffic_ent[i] = heap_alloc(game->heap, sizeof(ecs_entity_ref_t) * (12 - row_count[i]), 8);
+		for (int j = 0; j < (12 - row_count[i]); j++) {
 			spawn_traffic(game, i, j, true);
 		}
 	}
@@ -275,9 +275,10 @@ static void spawn_traffic(frogger_game_t* game, int row, int index, bool start)
 
 	transform_component_t* transform_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->transform_type, true);
 	transform_identity(&transform_comp->transform);
-	transform_comp->transform.scale.y = (row + 1) * 1.5f;
-	float widths[] = { 6.0f, 12.0f, 18.0f };
-	transform_comp->transform.translation.y = start ?  (widths[row] * index) - 27 : (row % 2 == 0 ? -28.0f : 28.0f);
+	float car_widths[] = { 1.0f, 2.5f, 5.0f };
+	transform_comp->transform.scale.y = car_widths[row];
+	float buffer_widths[] = { 4.5f, 9.0f, 18.0f };
+	transform_comp->transform.translation.y = start ?  ((car_widths[row] + buffer_widths[row]) * index) - 27 : (row % 2 == 0 ? -28.0f : 28.0f);
 	transform_comp->transform.translation.z = -5.0f * row;
 
 	name_component_t* name_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->name_type, true);
@@ -286,13 +287,13 @@ static void spawn_traffic(frogger_game_t* game, int row, int index, bool start)
 	traffic_component_t* traffic_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->traffic_type, true);
 	traffic_comp->row = row;
 	traffic_comp->index = index;
-	traffic_comp->width = (row + 1) * 3.0f;
+	traffic_comp->width = car_widths[row];
 	traffic_comp->speed = row % 2 == 0 ? (row + 1) * 3.0f : (row + 1) * -3.0f;
 
-	collider_component_t* collider_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][row], game->collider_type, true);
+	collider_component_t* collider_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->collider_type, true);
 	collider_comp->y_cord = transform_comp->transform.translation.x;
 	collider_comp->z_cord = transform_comp->transform.translation.y;
-	collider_comp->width = (row + 1) * 3.0f;
+	collider_comp->width = car_widths[row];
 	collider_comp->height = 2.0f;
 
 	model_component_t* model_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->model_type, true);
@@ -311,7 +312,7 @@ static void spawn_camera(frogger_game_t* game)
 	strcpy_s(name_comp->name, sizeof(name_comp->name), "camera");
 
 	camera_component_t* camera_comp = ecs_entity_get_component(game->ecs, game->camera_ent, game->camera_type, true);
-	mat4f_make_orthographic(&camera_comp->projection, 56.0f, 30.0f, 0.1f, 100.0f);
+	mat4f_make_orthographic(&camera_comp->projection, 57.0f, 30.0f, 0.1f, 100.0f);
 
 	vec3f_t eye_pos = vec3f_scale(vec3f_forward(), -5.0f);
 	vec3f_t forward = vec3f_forward();
@@ -334,7 +335,7 @@ static void update_players(frogger_game_t* game)
 		transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
 		player_component_t* player_comp = ecs_query_get_component(game->ecs, &query, game->player_type);
 
-		if (transform_comp->transform.translation.z < -14.0f)
+		if (transform_comp->transform.translation.z < -14.5f)
 		{
 			ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &query), false);
 			spawn_player(game, 0);
@@ -375,7 +376,7 @@ static void update_traffic(frogger_game_t* game)
 		transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
 		traffic_component_t* traffic_comp = ecs_query_get_component(game->ecs, &query, game->traffic_type);
 
-		if (transform_comp->transform.translation.y > 28.0f || transform_comp->transform.translation.y < -28.0f)
+		if (transform_comp->transform.translation.y > 28.5f || transform_comp->transform.translation.y < -28.5f)
 		{
 			ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &query), false);
 			spawn_traffic(game, traffic_comp->row, traffic_comp->index, false);
