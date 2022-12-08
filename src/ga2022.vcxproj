@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="atomic.c" />
     <ClCompile Include="audio.cpp" />
+    <ClCompile Include="cpp_test.cpp" />
     <ClCompile Include="debug.c" />
     <ClCompile Include="ecs.c" />
     <ClCompile Include="event.c" />
@@ -185,6 +186,7 @@
   <ItemGroup>
     <ClInclude Include="atomic.h" />
     <ClInclude Include="audio.h" />
+    <ClInclude Include="cpp_test.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="ecs.h" />
     <ClInclude Include="event.h" />
