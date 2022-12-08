@@ -152,6 +152,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="atomic.c" />
+    <ClCompile Include="audio.cpp" />
     <ClCompile Include="debug.c" />
     <ClCompile Include="ecs.c" />
     <ClCompile Include="event.c" />
@@ -170,7 +171,9 @@
     <ClCompile Include="render.c" />
     <ClCompile Include="semaphore.c" />
     <ClCompile Include="simple_game.c" />
-    <ClCompile Include="thread.c" />
+    <ClCompile Include="thread.c">
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">WITH_XAUDIO2;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
     <ClCompile Include="timeofday.c" />
     <ClCompile Include="timer.c" />
     <ClCompile Include="timer_object.c" />
@@ -181,6 +184,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="atomic.h" />
+    <ClInclude Include="audio.h" />
     <ClInclude Include="debug.h" />
     <ClInclude Include="ecs.h" />
     <ClInclude Include="event.h" />
@@ -196,6 +200,7 @@
     <ClInclude Include="quatf.h" />
     <ClInclude Include="queue.h" />
     <ClInclude Include="render.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="semaphore.h" />
     <ClInclude Include="simple_game.h" />
     <ClInclude Include="thread.h" />
@@ -238,7 +243,17 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(FullPath).spv</Outputs>
     </CustomBuild>
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ga2022.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Media Include="audio\background.wav" />
+    <Media Include="audio\barrier.wav" />
+    <Media Include="audio\explosion.wav" />
+    <Media Include="audio\hit.wav" />
+    <Media Include="audio\shoot.wav" />
+    <Media Include="audio\victory.wav" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>

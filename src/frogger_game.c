@@ -8,6 +8,7 @@
 #include "wm.h"
 #include "frogger_game.h"
 #include "debug.h"
+#include "audio.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -19,6 +20,7 @@
 typedef struct transform_component_t
 {
 	transform_t transform;
+	bool barrier;
 } transform_component_t;
 
 typedef struct camera_component_t
@@ -78,7 +80,12 @@ typedef struct frogger_game_t
 	int collider_type;
 	ecs_entity_ref_t player_ent;
 	ecs_entity_ref_t camera_ent;
+	//2D array b/c there are multiple rows of traffic
 	ecs_entity_ref_t** traffic_ent;
+
+	IXAudio2* p_x_audio2;
+	IXAudio2MasteringVoice* p_master_voice;
+	IXAudio2SourceVoice* p_source_voice_back;
 
 	gpu_mesh_info_t cube_mesh;
 	gpu_mesh_info_t prism_mesh;
@@ -118,12 +125,21 @@ frogger_game_t* frogger_game_create(heap_t* heap, fs_t* fs, wm_window_t* window,
 	game->collider_type = ecs_register_component_type(game->ecs, "collider", sizeof(collider_component_t), _Alignof(collider_component_t));
 
 	load_resources(game);
+
+	game->p_x_audio2 = heap_alloc(game->heap, sizeof(IXAudio2), 8);
+	game->p_master_voice = heap_alloc(game->heap, sizeof(IXAudio2MasteringVoice), 8);
+	game->p_source_voice_back = heap_alloc(game->heap, sizeof(IXAudio2SourceVoice), 8);
+	char* src_file_back = "audio/background.wav";
+	audio_enigne_create(game->p_x_audio2, game->p_master_voice, src_file_back, game->p_source_voice_back);
+
 	spawn_player(game, 0);
-	int row_count[] = {0, 6, 9};
+	//Count for how many traffic entities offset in each row from 12
+	int row_count[] = {9, 6, 2};
 	game->traffic_ent = heap_alloc(game->heap, sizeof(ecs_entity_ref_t*) * 3, 8);
+	//Populates 2D array with traffic entities
 	for (int i = 0; i < 3; i++) {
-		game->traffic_ent[i] = heap_alloc(game->heap, sizeof(ecs_entity_ref_t) * (12 - row_count[i]), 8);
-		for (int j = 0; j < (12 - row_count[i]); j++) {
+		game->traffic_ent[i] = heap_alloc(game->heap, sizeof(ecs_entity_ref_t) * row_count[i], 8);
+		for (int j = 0; j < row_count[i]; j++) {
 			spawn_traffic(game, i, j, true);
 		}
 	}
@@ -141,6 +157,9 @@ void frogger_game_destroy(frogger_game_t* game)
 	ecs_destroy(game->ecs);
 	timer_object_destroy(game->timer);
 	unload_resources(game);
+	heap_free(game->heap, game->p_x_audio2);
+	heap_free(game->heap, game->p_master_voice);
+	heap_free(game->heap, game->p_source_voice_back);
 	heap_free(game->heap, game);
 }
 
@@ -244,16 +263,20 @@ static void spawn_player(frogger_game_t* game, int index)
 	transform_component_t* transform_comp = ecs_entity_get_component(game->ecs, game->player_ent, game->transform_type, true);
 	transform_identity(&transform_comp->transform);
 	transform_comp->transform.translation.z = 10.0f;
+	transform_comp->barrier = false;
 
 	name_component_t* name_comp = ecs_entity_get_component(game->ecs, game->player_ent, game->name_type, true);
 	strcpy_s(name_comp->name, sizeof(name_comp->name), "player");
+
 
 	player_component_t* player_comp = ecs_entity_get_component(game->ecs, game->player_ent, game->player_type, true);
 	player_comp->index = index;
 
 	collider_component_t* collider_comp = ecs_entity_get_component(game->ecs, game->player_ent, game->collider_type, true);
+	//Copies y-cord, z-cord, width, and height of cube into the collider component
 	collider_comp->y_cord = transform_comp->transform.translation.y;
 	collider_comp->z_cord = transform_comp->transform.translation.z;
+	//Base mesh of cube is 2 units wide and 2 units tall
 	collider_comp->width = 2;
 	collider_comp->height = 2;
 
@@ -262,6 +285,7 @@ static void spawn_player(frogger_game_t* game, int index)
 	model_comp->shader_info = &game->cube_shader;
 }
 
+//Start boolean is used to indicate if this traffic entity is being spawned at the start of the game or after
 static void spawn_traffic(frogger_game_t* game, int row, int index, bool start)
 {
 	uint64_t k_traffic_ent_mask =
@@ -275,24 +299,31 @@ static void spawn_traffic(frogger_game_t* game, int row, int index, bool start)
 
 	transform_component_t* transform_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->transform_type, true);
 	transform_identity(&transform_comp->transform);
-	float car_widths[] = { 1.0f, 2.5f, 5.0f };
-	transform_comp->transform.scale.y = car_widths[row];
-	float buffer_widths[] = { 4.5f, 9.0f, 18.0f };
-	transform_comp->transform.translation.y = start ?  ((car_widths[row] + buffer_widths[row]) * index) - 27 : (row % 2 == 0 ? -28.0f : 28.0f);
+	//Widths of cars in each row
+	float car_widths[] = { 1.72f, 3.833f, 12.167f };
+	transform_comp->transform.scale.y = car_widths[row]/2.0f;
+	//Width of buffer space in-between cars in each rows
+	float buffer_widths[] = { 4.5f, 5.5f, 6.5f };
+	//Will change the spawning y value of the traffic. If it is spawning at the start it will build from the left edge of the screen
+	//If it is spawning after the start then it needs to spawn at whatever edge of the screen makes sense for the direction it is going
+	transform_comp->transform.translation.y = start ?  ((car_widths[row] + buffer_widths[row]) * index) - 28 : (row % 2 == 0 ? -28.0f : 28.0f);
 	transform_comp->transform.translation.z = -5.0f * row;
 
 	name_component_t* name_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->name_type, true);
 	strcpy_s(name_comp->name, sizeof(name_comp->name), "traffic");
 
+	//Stores the y-cord, z-cord, width, index, and speed in the traffic component of the entity
 	traffic_component_t* traffic_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->traffic_type, true);
 	traffic_comp->row = row;
 	traffic_comp->index = index;
 	traffic_comp->width = car_widths[row];
+	//Speed is the row index * 3, with the rows going to the right on an odd row, and left on an even row
 	traffic_comp->speed = row % 2 == 0 ? (row + 1) * 3.0f : (row + 1) * -3.0f;
 
+	//Stores the y-cord, z-cord, width, and height in the collider componenet of the entity
 	collider_component_t* collider_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->collider_type, true);
-	collider_comp->y_cord = transform_comp->transform.translation.x;
-	collider_comp->z_cord = transform_comp->transform.translation.y;
+	collider_comp->y_cord = transform_comp->transform.translation.y;
+	collider_comp->z_cord = transform_comp->transform.translation.z;
 	collider_comp->width = car_widths[row];
 	collider_comp->height = 2.0f;
 
@@ -312,6 +343,7 @@ static void spawn_camera(frogger_game_t* game)
 	strcpy_s(name_comp->name, sizeof(name_comp->name), "camera");
 
 	camera_component_t* camera_comp = ecs_entity_get_component(game->ecs, game->camera_ent, game->camera_type, true);
+	//Creates a projection camera with width of 57 and height of 30
 	mat4f_make_orthographic(&camera_comp->projection, 57.0f, 30.0f, 0.1f, 100.0f);
 
 	vec3f_t eye_pos = vec3f_scale(vec3f_forward(), -5.0f);
@@ -338,6 +370,7 @@ static void update_players(frogger_game_t* game)
 		if (transform_comp->transform.translation.z < -14.5f)
 		{
 			ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &query), false);
+			PlaySound(TEXT("audio/victory.wav"), NULL, SND_ASYNC);
 			spawn_player(game, 0);
 		}
 
@@ -359,6 +392,15 @@ static void update_players(frogger_game_t* game)
 		{
 			move.translation = vec3f_add(move.translation, vec3f_scale(vec3f_right(), dt*5));
 		}
+		if (transform_comp->transform.translation.y > 14.0f || transform_comp->transform.translation.y < -14.0f) {
+			if (transform_comp->barrier == false) {
+				PlaySound(TEXT("audio/barrier.wav"), NULL, SND_ASYNC);
+				transform_comp->barrier = true;
+			}
+		}
+		else {
+			transform_comp->barrier = false;
+		}
 		transform_multiply(&transform_comp->transform, &move);
 	}
 }
@@ -376,6 +418,7 @@ static void update_traffic(frogger_game_t* game)
 		transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
 		traffic_component_t* traffic_comp = ecs_query_get_component(game->ecs, &query, game->traffic_type);
 
+		//If the traffic entity reaches the edge of the screen destroy it and respawn it at the other edge of the screen
 		if (transform_comp->transform.translation.y > 28.5f || transform_comp->transform.translation.y < -28.5f)
 		{
 			ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &query), false);
@@ -384,6 +427,7 @@ static void update_traffic(frogger_game_t* game)
 
 		transform_t move;
 		transform_identity(&move);
+		//Moves the traffic entity every second based on it's set speed
 		move.translation = vec3f_add(move.translation, vec3f_scale(vec3f_right(), dt * traffic_comp->speed));
 		transform_multiply(&transform_comp->transform, &move);
 	}
@@ -391,61 +435,74 @@ static void update_traffic(frogger_game_t* game)
 
 static void update_collisions(frogger_game_t* game)
 {
-	uint64_t k_query_mask = (1ULL << game->player_type);
+	//Masks for getting player and traffic entities
+	uint64_t k_query_mask_player = (1ULL << game->player_type);
+	uint64_t k_query_mask_traffic = (1ULL << game->transform_type) | (1ULL << game->collider_type) | (1ULL << game->traffic_type);
 
-	player_component_t* player_comp = NULL;
-	collider_component_t* player_collider_comp = NULL;
-	ecs_query_t player_query;
-
-	for (ecs_query_t query = ecs_query_create(game->ecs, k_query_mask);
+	//Loops for all player entities
+	for (ecs_query_t query = ecs_query_create(game->ecs, k_query_mask_player);
 		ecs_query_is_valid(game->ecs, &query);
 		ecs_query_next(game->ecs, &query))
 	{
-		player_comp = ecs_query_get_component(game->ecs, &query, game->player_type);
-		player_collider_comp = ecs_query_get_component(game->ecs, &query, game->collider_type);
+		player_component_t*  player_comp = ecs_query_get_component(game->ecs, &query, game->player_type);
+		collider_component_t*  player_collider_comp = ecs_query_get_component(game->ecs, &query, game->collider_type);
 		transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
+		//Updates player collider comp with its current transform comp values
 		player_collider_comp->y_cord = transform_comp->transform.translation.y;
 		player_collider_comp->z_cord = transform_comp->transform.translation.z;
-		player_query = query;
-	}
+		ecs_query_t player_query = query;
 
-	k_query_mask = (1ULL << game->transform_type) | (1ULL << game->collider_type) | (1ULL << game->traffic_type);
+		//Loops for all traffic entities
+		for (ecs_query_t query = ecs_query_create(game->ecs, k_query_mask_traffic);
+			ecs_query_is_valid(game->ecs, &query);
+			ecs_query_next(game->ecs, &query))
+		{
+			transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
+			collider_component_t* collider_comp = ecs_query_get_component(game->ecs, &query, game->collider_type);
+			//Updates traffic collider comp with its current transform comp values
+			collider_comp->y_cord = transform_comp->transform.translation.y;
+			collider_comp->z_cord = transform_comp->transform.translation.z;
 
-	for (ecs_query_t query = ecs_query_create(game->ecs, k_query_mask);
-		ecs_query_is_valid(game->ecs, &query);
-		ecs_query_next(game->ecs, &query))
-	{
-		transform_component_t* transform_comp = ecs_query_get_component(game->ecs, &query, game->transform_type);
-		collider_component_t* collider_comp = ecs_query_get_component(game->ecs, &query, game->collider_type);
-		collider_comp->y_cord = transform_comp->transform.translation.y;
-		collider_comp->z_cord = transform_comp->transform.translation.z;
+			float y1 = player_collider_comp->y_cord;
+			float z1 = player_collider_comp->z_cord;
+			float y2 = y1 + player_collider_comp->width;
+			float z2 = z1 - player_collider_comp->height;
+			float y3 = collider_comp->y_cord;
+			float z3 = collider_comp->z_cord;
+			float y4 = y3 + collider_comp->width;
+			float z4 = z3 - collider_comp->height;
+			//Boolean to keep track if a collision was found
+			bool dead = false;
 
-		float y1 = player_collider_comp->y_cord;
-		float z1 = player_collider_comp->z_cord;
-		float y2 = y1 + player_collider_comp->width;
-		float z2 = z1 - player_collider_comp->height;
-		float y3 = collider_comp->y_cord;
-		float z3 = collider_comp->z_cord;
-		float y4 = y3 + collider_comp->width;
-		float z4 = z3 - collider_comp->height;
-		bool dead = false;
-
-		if (y1 > y3 && y1 < y4 &&  z1 < z3 && z1 > z4) {
-			dead = true;
-		}
-		else if (y1 > y3 && y1 < y4 && z2 < z3 && z2 > z4) {
-			dead = true;
-		}
-		else if (y2 > y3 && y2 < y4 && z1 < z3 && z1 > z4) {
-			dead = true;
-		}
-		else if (y2 > y3 && y2 < y4 && z2 < z3 && z2 > z4) {
-			dead = true;
-		}
-		
-		if (dead) {
-			ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &player_query), false);
-			spawn_player(game, 0);
+			if (y1 > y3 && y1 < y4 && z1 < z3 && z1 > z4) {
+				dead = true;
+			}
+			else if (y1 > y3 && y1 < y4 && z2 < z3 && z2 > z4) {
+				dead = true;
+			}
+			else if (y2 > y3 && y2 < y4 && z1 < z3 && z1 > z4) {
+				dead = true;
+			}
+			else if (y2 > y3 && y2 < y4 && z2 < z3 && z2 > z4) {
+				dead = true;
+			}
+			if (dead) {
+				debug_print(
+					k_print_info,
+					"You DIED!\nPlayer = y1:%.3f  z1:%.3f  y2:%.3f  z2:%.3f\nTraffic = y3:%.3f  z3:%.3f  y4:%.3f  z4:%.3f\n",
+					y1, z1, y2, z2, y3, z3, y4, z4);
+				if (collider_comp->z_cord == 0) {
+					PlaySound(TEXT("audio/hit.wav"), NULL, SND_ASYNC);
+				}
+				else if (collider_comp->z_cord == -10) {
+					PlaySound(TEXT("audio/shoot.wav"), NULL, SND_ASYNC);
+				}
+				else {
+					PlaySound(TEXT("audio/explosion.wav"), NULL, SND_ASYNC);
+				}
+				ecs_entity_remove(game->ecs, ecs_query_get_entity(game->ecs, &player_query), false);
+				spawn_player(game, 0);
+			}
 		}
 	}
 }

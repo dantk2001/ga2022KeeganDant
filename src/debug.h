@@ -23,7 +23,13 @@ void debug_set_print_mask(uint32_t mask);
 // Log a message to the console.
 // Message may be dropped if type is not in the active mask.
 // See debug_set_print_mask.
+#ifdef __cplusplus
+extern "C" {
+#endif
 void debug_print(uint32_t type, _Printf_format_string_ const char* format, ...);
+#ifdef __cplusplus
+}
+#endif
 
 // Capture a list of addresses that make up the current function callstack.
 // On return, stack contains at most stack_capacity addresses.
