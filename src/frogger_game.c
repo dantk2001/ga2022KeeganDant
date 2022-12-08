@@ -134,7 +134,7 @@ frogger_game_t* frogger_game_create(heap_t* heap, fs_t* fs, wm_window_t* window,
 
 	spawn_player(game, 0);
 	//Count for how many traffic entities offset in each row from 12
-	int row_count[] = {9, 6, 2};
+	int row_count[] = {9, 6, 3};
 	game->traffic_ent = heap_alloc(game->heap, sizeof(ecs_entity_ref_t*) * 3, 8);
 	//Populates 2D array with traffic entities
 	for (int i = 0; i < 3; i++) {
@@ -306,7 +306,7 @@ static void spawn_traffic(frogger_game_t* game, int row, int index, bool start)
 	float buffer_widths[] = { 4.5f, 5.5f, 6.5f };
 	//Will change the spawning y value of the traffic. If it is spawning at the start it will build from the left edge of the screen
 	//If it is spawning after the start then it needs to spawn at whatever edge of the screen makes sense for the direction it is going
-	transform_comp->transform.translation.y = start ?  ((car_widths[row] + buffer_widths[row]) * index) - 28 : (row % 2 == 0 ? -28.0f : 28.0f);
+	transform_comp->transform.translation.y = start ?  ((car_widths[row] + buffer_widths[row]) * (index + 0.5f)) - 28 : (row % 2 == 0 ? -28.0f : 28.0f);
 	transform_comp->transform.translation.z = -5.0f * row;
 
 	name_component_t* name_comp = ecs_entity_get_component(game->ecs, game->traffic_ent[row][index], game->name_type, true);
@@ -463,12 +463,12 @@ static void update_collisions(frogger_game_t* game)
 			collider_comp->y_cord = transform_comp->transform.translation.y;
 			collider_comp->z_cord = transform_comp->transform.translation.z;
 
-			float y1 = player_collider_comp->y_cord;
-			float z1 = player_collider_comp->z_cord;
+			float y1 = player_collider_comp->y_cord - (player_collider_comp->width * 0.5f);
+			float z1 = player_collider_comp->z_cord + (player_collider_comp->height * 0.5f);
 			float y2 = y1 + player_collider_comp->width;
 			float z2 = z1 - player_collider_comp->height;
-			float y3 = collider_comp->y_cord;
-			float z3 = collider_comp->z_cord;
+			float y3 = collider_comp->y_cord - (collider_comp->width * 0.5f);
+			float z3 = collider_comp->z_cord + (collider_comp->height * 0.5f);
 			float y4 = y3 + collider_comp->width;
 			float z4 = z3 - collider_comp->height;
 			//Boolean to keep track if a collision was found
